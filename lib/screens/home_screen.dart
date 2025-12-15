@@ -1,0 +1,247 @@
+import 'package:elective3project/database/database_helper.dart';
+import 'package:elective3project/widgets/available_flights_tab.dart';
+import 'package:flutter/material.dart';
+import 'package:elective3project/widgets/booking_tab.dart';
+import 'package:elective3project/widgets/booked_flights_tab.dart';
+import 'package:elective3project/models/booking.dart';
+import 'package:elective3project/widgets/profile_tab.dart';
+
+// This is the StatefulWidget declaration.
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+// This is the State class where all the logic resides.
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+  List<Booking> _bookedFlights = [];
+  int? _userId; // This will store the logged-in user's ID.
+  String? _initialDestination; // To hold the destination from the home screen
+
+  final List<Map<String, String>> _bestOffers = [
+    {'name': 'Siargao', 'imageUrl': 'assets/images/siargao.jpg'},
+    {'name': 'Palawan', 'imageUrl': 'assets/images/palawan.jpg'},
+    {'name': 'Bohol', 'imageUrl': 'assets/images/bohol.png'},
+    {'name': 'Boracay', 'imageUrl': 'assets/images/boracay.jpg'},
+    {'name': 'Siquijor', 'imageUrl': 'assets/images/siquijor.jpg'},
+  ];
+
+  final List<String> _dealImages = [
+    'assets/images/sale1.png',
+    'assets/images/sale2.png',
+  ];
+
+  // Navigate to the booking tab with a pre-selected destination
+  void _navigateToBooking(String destination) {
+    setState(() {
+      _initialDestination = destination;
+      _selectedIndex = 1; // Index of the BookingTab
+    });
+  }
+
+  // This is the home tab UI, wrapped in a getter for cleanliness.
+  Widget get _homeTab => SingleChildScrollView(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+          child: Image.asset(
+            'assets/images/intro.jpg',
+            width: double.infinity,
+            height: 200,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            'Explore Our Best Offers From',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 180,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _bestOffers.length,
+            itemBuilder: (context, index) {
+              final offer = _bestOffers[index];
+              return Padding(
+                padding: EdgeInsets.only(left: 16.0, right: index == _bestOffers.length - 1 ? 16.0 : 0),
+                child: SizedBox(
+                  width: 200,
+                  child: GestureDetector(
+                    onTap: () => _navigateToBooking(offer['name']!),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8.0),
+                          child: Image.asset(
+                            offer['imageUrl']!,
+                            width: 200,
+                            height: 180,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Text(
+                            offer['name']!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              shadows: [Shadow(blurRadius: 10.0, color: Colors.black)],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            'Best Deal for you',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 150,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _dealImages.length,
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: EdgeInsets.only(left: 16.0, right: index == _dealImages.length - 1 ? 16.0 : 0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8.0),
+                  child: Image.asset(
+                    _dealImages[index],
+                    width: 300,
+                    height: 150,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    ),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)!.settings.arguments;
+      if (args is int) {
+        if (mounted) {
+          setState(() {
+            _userId = args;
+            _loadBookings();
+          });
+        }
+      } else {
+        setState((){
+          _userId = 1;
+          _loadBookings();
+        });
+      }
+    });
+  }
+
+  Future<void> _loadBookings() async {
+    if (_userId != null) {
+      final db = DatabaseHelper();
+      final bookings = await db.getBookings(_userId!);
+      if (mounted) {
+        setState(() {
+          _bookedFlights = bookings;
+        });
+      }
+    }
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _initialDestination = null;
+    });
+    if (index == 3) {
+      _loadBookings();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> _widgetOptions = <Widget>[
+      _homeTab,
+      BookingTab(initialDestination: _initialDestination, userId: _userId),
+      const AvailableFlightsTab(),
+      BookedFlightsTab(bookedFlights: _bookedFlights, onRefresh: _loadBookings),
+      ProfileTab(userId: _userId, onMyBookingsTapped: () => _onItemTapped(3)),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          _getAppBarTitle(_selectedIndex),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Image.asset('assets/images/logo.png'),
+        ),
+        automaticallyImplyLeading: false,
+      ),
+      body: Center(
+        child: _widgetOptions.elementAt(_selectedIndex),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.flight), label: 'Book Flight'),
+          BottomNavigationBarItem(icon: Icon(Icons.schedule), label: 'Schedules'),
+          BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'My Bookings'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
+    );
+  }
+
+  String _getAppBarTitle(int index) {
+    switch (index) {
+      case 0:
+        return 'FLYQUEST';
+      case 1:
+        return 'BOOK A FLIGHT';
+      case 2:
+        return 'FLIGHT SCHEDULES';
+      case 3:
+        return 'MY BOOKINGS';
+      case 4:
+        return 'PROFILE & SETTINGS';
+      default:
+        return 'FLYQUEST';
+    }
+  }
+}
